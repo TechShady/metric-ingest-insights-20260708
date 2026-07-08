@@ -12,19 +12,20 @@ import {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "8px 10px",
-  background: "rgba(128,128,128,0.15)",
-  border: "1px solid rgba(128,128,128,0.4)",
+  padding: "9px 10px",
+  background: "rgba(128,128,128,0.08)",
+  border: "1px solid rgba(128,128,128,0.5)",
   borderRadius: 4,
   color: "inherit",
   fontSize: 13,
+  lineHeight: 1.25,
   boxSizing: "border-box",
 };
 
 const overlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.58)",
+  background: "rgba(0,0,0,0.45)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -34,30 +35,42 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const dialogStyle: React.CSSProperties = {
-  // Use a near-opaque surface so underlying page content does not bleed through.
-  background: "rgba(128,128,128,0.95)",
-  border: "1px solid rgba(128,128,128,0.35)",
+  background: "Canvas",
+  border: "1px solid rgba(128,128,128,0.45)",
   borderRadius: 8,
   padding: 20,
   width: 900,
   maxWidth: "95vw",
   maxHeight: "90vh",
   overflowY: "auto",
-  boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
-  color: "inherit",
+  boxShadow: "0 20px 56px rgba(0,0,0,0.38)",
+  color: "CanvasText",
   position: "relative",
   zIndex: 2147483647,
-  backdropFilter: "blur(2px)",
 };
 
 const btnStyle: React.CSSProperties = {
   padding: "6px 16px",
   borderRadius: 4,
-  border: "1px solid rgba(128,128,128,0.45)",
-  background: "transparent",
+  border: "1px solid rgba(128,128,128,0.5)",
+  background: "rgba(128,128,128,0.12)",
   color: "inherit",
   cursor: "pointer",
   fontSize: 13,
+};
+
+const modalHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 16,
+  paddingBottom: 10,
+  borderBottom: "1px solid rgba(20,150,255,0.35)",
+  background: "linear-gradient(90deg, rgba(20,150,255,0.08), rgba(20,150,255,0.02))",
+  borderRadius: 6,
+  paddingLeft: 10,
+  paddingRight: 10,
+  paddingTop: 8,
 };
 
 export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -144,10 +157,40 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
   return createPortal(
     <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={dialogStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Settings</h2>
-          <button onClick={onClose} style={{ ...btnStyle, border: "none", fontSize: 18, padding: "2px 8px" }}>x</button>
+      <div style={dialogStyle} data-settings-modal>
+        <style>{`
+          [data-settings-modal] input,
+          [data-settings-modal] select {
+            transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+          }
+
+          [data-settings-modal] input:focus,
+          [data-settings-modal] select:focus {
+            outline: none;
+            border-color: #1496ff;
+            box-shadow: 0 0 0 2px rgba(20, 150, 255, 0.2);
+            background: rgba(20, 150, 255, 0.06);
+          }
+
+          [data-settings-modal] input[type="number"] {
+            appearance: textfield;
+            -moz-appearance: textfield;
+          }
+
+          [data-settings-modal] input[type="number"]::-webkit-outer-spin-button,
+          [data-settings-modal] input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+          }
+        `}</style>
+        <div style={modalHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Settings</h2>
+            <div style={{ fontSize: 11, opacity: 0.72, marginTop: 2 }}>Tune assumptions, pricing, and volume inputs</div>
+          </div>
+          <button onClick={onClose} style={{ ...btnStyle, fontSize: 18, lineHeight: 1, padding: "2px 8px" }}>
+            X
+          </button>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -302,7 +345,19 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           <button onClick={reset} style={btnStyle}>Reset defaults</button>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={onClose} style={btnStyle}>Cancel</button>
-            <button onClick={apply} style={{ ...btnStyle, background: "#1496ff", color: "#fff", borderColor: "#1496ff" }}>Apply</button>
+            <button
+              onClick={apply}
+              style={{
+                ...btnStyle,
+                background: "linear-gradient(180deg, #23a2ff, #1496ff)",
+                color: "#fff",
+                borderColor: "#1496ff",
+                boxShadow: "0 1px 8px rgba(20,150,255,0.35)",
+                fontWeight: 700,
+              }}
+            >
+              Apply
+            </button>
           </div>
         </div>
       </div>
@@ -312,7 +367,7 @@ export const SettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div style={{ border: "1px solid rgba(128,128,128,0.35)", borderRadius: 6, padding: 12 }}>
+  <div style={{ border: "1px solid rgba(128,128,128,0.35)", borderRadius: 6, padding: 12, background: "rgba(128,128,128,0.04)" }}>
     <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{title}</div>
     {children}
   </div>

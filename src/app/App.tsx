@@ -110,10 +110,12 @@ const Shell: React.FC = () => {
                   justifyContent: "center",
                   width: 32,
                   height: 32,
-                  background: "rgba(128,128,128,0.1)",
-                  border: "1px solid rgba(128,128,128,0.3)",
+                  background: settingsOpen ? "rgba(20,150,255,0.2)" : "rgba(20,150,255,0.1)",
+                  border: settingsOpen ? "1px solid rgba(20,150,255,0.65)" : "1px solid rgba(20,150,255,0.4)",
                   borderRadius: 4,
                   color: "inherit",
+                  boxShadow: settingsOpen ? "0 0 0 2px rgba(20,150,255,0.18)" : "none",
+                  transition: "background 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
                   cursor: "pointer",
                 }}
                 aria-label="Settings"

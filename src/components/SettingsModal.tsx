@@ -28,7 +28,9 @@ const overlayStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  zIndex: 10000,
+  // Ensure settings modal stays above Dynatrace shell and any in-app sticky layers.
+  zIndex: 2147483000,
+  isolation: "isolate",
 };
 
 const dialogStyle: React.CSSProperties = {

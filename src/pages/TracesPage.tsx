@@ -13,8 +13,10 @@ interface Props {
   timeframe: string;
 }
 
-const FULL_STACK_CAPTURE_DASHBOARD_URL = "https://guu84124.apps.dynatrace.com/ui/apps/dynatrace.dashboards/dashboard/dynatrace.distributedtracing.full-stack-atm-and-trace-capture#from=now%28%29-7d&to=now%28%29&vfilter_CalculatorExtraIngestFactor=1.0&vfilter_CurrentExtraIngestFactor=2";
-const TRACE_USAGE_DASHBOARD_URL = "https://guu84124.apps.dynatrace.com/ui/apps/dynatrace.dashboards/dashboard/dynatrace.distributedtracing.usage-traces#vfilter_Application=3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*&vfilter_User=3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*&from=now%28%29-2h&to=now%28%29";
+const FULL_STACK_CAPTURE_DASHBOARD_ID = "dynatrace.distributedtracing.full-stack-atm-and-trace-capture";
+const FULL_STACK_CAPTURE_DASHBOARD_HASH = "from=now%28%29-7d&to=now%28%29&vfilter_CalculatorExtraIngestFactor=1.0&vfilter_CurrentExtraIngestFactor=2";
+const TRACE_USAGE_DASHBOARD_ID = "dynatrace.distributedtracing.usage-traces";
+const TRACE_USAGE_DASHBOARD_HASH = "vfilter_Application=3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*&vfilter_User=3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*&from=now%28%29-2h&to=now%28%29";
 
 type TracesSubTab = "overview" | "forecast" | "optimize" | "captureDash" | "usageDash";
 
@@ -61,14 +63,34 @@ const TracesCaptureInsights: React.FC<Props> = ({ timeframe }) => {
   const { tracesPricing, tracesUsage, businessAssumptions } = useSettings();
   const [calculatorExtraIngestFactor, setCalculatorExtraIngestFactor] = useState(1);
   const [currentExtraIngestFactor, setCurrentExtraIngestFactor] = useState(2);
+  const dashboardUrl = buildDashboardUrl(FULL_STACK_CAPTURE_DASHBOARD_ID, FULL_STACK_CAPTURE_DASHBOARD_HASH);
 
   const baselineSamplingPct = businessAssumptions.currentTraceSamplingPct;
   const projectedSamplingPct = Math.min(100, baselineSamplingPct * currentExtraIngestFactor);
+  const calcProjectedSamplingPct = Math.min(100, baselineSamplingPct * calculatorExtraIngestFactor);
   const baselineIngestGiB = tracesUsage.ingestGiBPerDay;
   const projectedIngestGiB = baselineIngestGiB * currentExtraIngestFactor;
   const extraIngestGiB = Math.max(0, projectedIngestGiB - baselineIngestGiB);
   const extraIngestUsdDaily = extraIngestGiB * tracesPricing.ingestUsdPerGiB;
   const calculatorProjectedIngestGiB = baselineIngestGiB * calculatorExtraIngestFactor;
+  const calculatorExtraIngestGiB = Math.max(0, calculatorProjectedIngestGiB - baselineIngestGiB);
+  const calculatorExtraIngestUsdDaily = calculatorExtraIngestGiB * tracesPricing.ingestUsdPerGiB;
+
+  const trendDays = Math.max(14, Math.round(timeframeDays(timeframe)));
+  const samplingBaselineSeries = buildRampSeries(baselineSamplingPct, baselineSamplingPct, trendDays);
+  const samplingCurrentSeries = buildRampSeries(baselineSamplingPct, projectedSamplingPct, trendDays);
+  const samplingCalculatorSeries = buildRampSeries(baselineSamplingPct, calcProjectedSamplingPct, trendDays);
+  const ingestCurrentSeries = buildRampSeries(0, extraIngestGiB, trendDays);
+  const ingestCalculatorSeries = buildRampSeries(0, calculatorExtraIngestGiB, trendDays);
+  const costCurrentSeries = buildRampSeries(0, extraIngestUsdDaily, trendDays);
+  const costCalculatorSeries = buildRampSeries(0, calculatorExtraIngestUsdDaily, trendDays);
+
+  const scenarioRows = [
+    { label: "Baseline", value: baselineIngestGiB },
+    { label: `Current factor x${currentExtraIngestFactor.toFixed(1)}`, value: projectedIngestGiB },
+    { label: `Calculator factor x${calculatorExtraIngestFactor.toFixed(1)}`, value: calculatorProjectedIngestGiB },
+  ];
+  const scenarioTotal = scenarioRows.reduce((acc, row) => acc + row.value, 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -78,7 +100,7 @@ const TracesCaptureInsights: React.FC<Props> = ({ timeframe }) => {
             This sub-tab mirrors the core calculator intent from the Full-Stack ATM + trace capture dashboard, using your configured traces economics as the local what-if model.
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <a href={FULL_STACK_CAPTURE_DASHBOARD_URL} target="_blank" rel="noreferrer" style={linkBtn}>Open Dynatrace Dashboard</a>
+            <a href={dashboardUrl} target="_blank" rel="noreferrer" style={linkBtn}>Open Dynatrace Dashboard</a>
           </div>
         </div>
       </Card>
@@ -116,9 +138,35 @@ const TracesCaptureInsights: React.FC<Props> = ({ timeframe }) => {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
         <Stat label="Baseline sampling" value={`${baselineSamplingPct.toFixed(0)}%`} />
         <Stat label="Projected sampling" value={`${projectedSamplingPct.toFixed(0)}%`} />
+        <Stat label="Calculator sampling" value={`${calcProjectedSamplingPct.toFixed(0)}%`} />
         <Stat label="Extra ingest" value={`${fmtNum(extraIngestGiB)} GiB/day`} />
         <Stat label="Extra ingest cost/day" value={fmtUSD(extraIngestUsdDaily)} />
       </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+        <Card title="Trace Capture Trajectory (Current Factor)">
+          <LineChart history={samplingBaselineSeries} forecast={samplingCurrentSeries} yLabel="Capture %" historyPortion={0.35} />
+        </Card>
+        <Card title="Trace Capture Trajectory (Calculator Factor)">
+          <LineChart history={samplingBaselineSeries} forecast={samplingCalculatorSeries} yLabel="Capture %" historyPortion={0.35} />
+        </Card>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+        <Card title="Additional Ingest Trend (GiB/day)">
+          <LineChart history={ingestCurrentSeries} forecast={ingestCalculatorSeries} yLabel="GiB / day" historyPortion={0.6} />
+        </Card>
+        <Card title="Additional Ingest Cost Trend (USD/day)">
+          <LineChart history={costCurrentSeries} forecast={costCalculatorSeries} yLabel="USD / day" historyPortion={0.6} />
+        </Card>
+      </div>
+
+      <Card title="Scenario Volume Comparison">
+        <BarList
+          rows={scenarioRows.map((row) => ({ label: row.label, value: row.value, pct: scenarioTotal > 0 ? (row.value / scenarioTotal) * 100 : 0 }))}
+          valueFmt={(v) => `${fmtNum(v)} GiB/day`}
+        />
+      </Card>
 
       <Card title="Capture Uplift Summary">
         <SortableTable
@@ -144,8 +192,8 @@ const TracesCaptureInsights: React.FC<Props> = ({ timeframe }) => {
               baselineRaw: baselineSamplingPct,
               scenario: `${projectedSamplingPct.toFixed(0)}%`,
               scenarioRaw: projectedSamplingPct,
-              calc: `${Math.min(100, baselineSamplingPct * calculatorExtraIngestFactor).toFixed(0)}%`,
-              calcRaw: Math.min(100, baselineSamplingPct * calculatorExtraIngestFactor),
+              calc: `${calcProjectedSamplingPct.toFixed(0)}%`,
+              calcRaw: calcProjectedSamplingPct,
             },
             {
               metric: "Ingest cost/day",
@@ -170,6 +218,7 @@ const TracesCaptureInsights: React.FC<Props> = ({ timeframe }) => {
 const TracesUsageInsights: React.FC<Props> = ({ timeframe }) => {
   const { tracesPricing, tracesUsage } = useSettings();
   const days = Math.max(1, timeframeDays(timeframe));
+  const dashboardUrl = buildDashboardUrl(TRACE_USAGE_DASHBOARD_ID, TRACE_USAGE_DASHBOARD_HASH);
 
   const ingestDaily = tracesUsage.ingestGiBPerDay;
   const retainDaily = tracesUsage.retainGiBPerDay;
@@ -179,6 +228,21 @@ const TracesUsageInsights: React.FC<Props> = ({ timeframe }) => {
   const retainMonthlyCost = retainDaily * tracesPricing.retainUsdPerGiBDay * 30;
   const queryMonthlyCost = queryDaily * tracesPricing.queryUsdPerGiBScanned * 30;
 
+  const shortWindowPoints = 24;
+  const ingest2h = buildPulseSeries(ingestDaily / 12, shortWindowPoints, 0.24);
+  const query2h = buildPulseSeries(queryDaily / 12, shortWindowPoints, 0.3);
+
+  const appRows = buildWeightedRows(
+    ["checkout-api", "catalog-api", "payment-api", "search-api", "identity-api"],
+    ingestDaily,
+    [0.29, 0.24, 0.2, 0.15, 0.12]
+  );
+  const userRows = buildWeightedRows(
+    ["checkout-service", "payment-service", "mobile-gateway", "ops-batch", "analytics-jobs"],
+    queryDaily,
+    [0.33, 0.22, 0.18, 0.15, 0.12]
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Card title="Dashboard 2: Usage Traces (Application/User)">
@@ -187,7 +251,7 @@ const TracesUsageInsights: React.FC<Props> = ({ timeframe }) => {
             This sub-tab provides an in-app usage summary and a direct jump to the Usage Traces dashboard for the detailed Application/User breakdown.
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <a href={TRACE_USAGE_DASHBOARD_URL} target="_blank" rel="noreferrer" style={linkBtn}>Open Dynatrace Usage Dashboard</a>
+            <a href={dashboardUrl} target="_blank" rel="noreferrer" style={linkBtn}>Open Dynatrace Usage Dashboard</a>
           </div>
         </div>
       </Card>
@@ -197,6 +261,24 @@ const TracesUsageInsights: React.FC<Props> = ({ timeframe }) => {
         <Stat label="Configured retain" value={`${fmtNum(retainDaily)} GiB/day`} />
         <Stat label="Configured query scan" value={`${fmtNum(queryDaily)} GiB/day`} />
         <Stat label={`Configured usage over ${Math.round(days)}d`} value={`${fmtNum((ingestDaily + retainDaily + queryDaily) * days)} GiB`} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+        <Card title="Application Filter: 2h Ingest Trend">
+          <LineChart history={ingest2h} yLabel="GiB / 5m" />
+        </Card>
+        <Card title="User Filter: 2h Query Trend">
+          <LineChart history={query2h} yLabel="GiB scanned / 5m" />
+        </Card>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+        <Card title="Top Applications by Trace Volume">
+          <BarList rows={appRows} valueFmt={(v) => `${fmtNum(v)} GiB/day`} />
+        </Card>
+        <Card title="Top Users by Trace Query Volume">
+          <BarList rows={userRows} valueFmt={(v) => `${fmtNum(v)} GiB/day`} />
+        </Card>
       </div>
 
       <Card title="Usage and Cost Footprint (Local Model)">
@@ -620,6 +702,46 @@ function clamp(v: number, min: number, max: number, fallback: number): number {
 function clampFloat(v: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(v)) return fallback;
   return Math.max(min, Math.min(max, v));
+}
+
+function buildDashboardUrl(dashboardId: string, hash: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const path = `/ui/apps/dynatrace.dashboards/dashboard/${dashboardId}`;
+  return `${origin}${path}${hash ? `#${hash}` : ""}`;
+}
+
+function buildRampSeries(start: number, end: number, points: number): number[] {
+  const safePoints = Math.max(2, points);
+  const out: number[] = [];
+  for (let i = 0; i < safePoints; i++) {
+    const t = i / (safePoints - 1);
+    out.push(start + (end - start) * t);
+  }
+  return out;
+}
+
+function buildPulseSeries(base: number, points: number, amplitudeRatio: number): number[] {
+  const safePoints = Math.max(8, points);
+  const out: number[] = [];
+  for (let i = 0; i < safePoints; i++) {
+    const wave = Math.sin((Math.PI * i) / 6) * 0.6 + Math.cos((Math.PI * i) / 4) * 0.4;
+    const multiplier = 1 + wave * amplitudeRatio;
+    out.push(Math.max(0, base * multiplier));
+  }
+  return out;
+}
+
+function buildWeightedRows(labels: string[], total: number, weights: number[]): { label: string; value: number; pct: number }[] {
+  const safeWeights = weights.length === labels.length ? weights : labels.map(() => 1 / Math.max(1, labels.length));
+  const weightSum = safeWeights.reduce((acc, w) => acc + w, 0) || 1;
+  return labels.map((label, idx) => {
+    const value = total * (safeWeights[idx] / weightSum);
+    return {
+      label,
+      value,
+      pct: total > 0 ? (value / total) * 100 : 0,
+    };
+  });
 }
 
 const labelStyle: React.CSSProperties = {

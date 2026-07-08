@@ -13,7 +13,10 @@ interface Props {
   timeframe: string;
 }
 
-type TracesSubTab = "overview" | "forecast" | "optimize";
+const FULL_STACK_CAPTURE_DASHBOARD_URL = "https://guu84124.apps.dynatrace.com/ui/apps/dynatrace.dashboards/dashboard/dynatrace.distributedtracing.full-stack-atm-and-trace-capture#from=now%28%29-7d&to=now%28%29&vfilter_CalculatorExtraIngestFactor=1.0&vfilter_CurrentExtraIngestFactor=2";
+const TRACE_USAGE_DASHBOARD_URL = "https://guu84124.apps.dynatrace.com/ui/apps/dynatrace.dashboards/dashboard/dynatrace.distributedtracing.usage-traces#vfilter_Application=3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*&vfilter_User=3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*&from=now%28%29-2h&to=now%28%29";
+
+type TracesSubTab = "overview" | "forecast" | "optimize" | "captureDash" | "usageDash";
 
 export const TracesPage: React.FC<Props> = ({ timeframe }) => {
   const [tab, setTab] = useState<TracesSubTab>("overview");
@@ -24,6 +27,8 @@ export const TracesPage: React.FC<Props> = ({ timeframe }) => {
           { id: "overview", label: "Overview" },
           { id: "forecast", label: "Forecast" },
           { id: "optimize", label: "Optimize" },
+          { id: "captureDash", label: "Capture Insights" },
+          { id: "usageDash", label: "Usage Insights" },
         ].map((t) => (
           <button
             key={t.id}
@@ -46,6 +51,197 @@ export const TracesPage: React.FC<Props> = ({ timeframe }) => {
       {tab === "overview" && <TracesOverview timeframe={timeframe} />}
       {tab === "forecast" && <TracesForecast timeframe={timeframe} />}
       {tab === "optimize" && <TracesOptimize timeframe={timeframe} />}
+      {tab === "captureDash" && <TracesCaptureInsights timeframe={timeframe} />}
+      {tab === "usageDash" && <TracesUsageInsights timeframe={timeframe} />}
+    </div>
+  );
+};
+
+const TracesCaptureInsights: React.FC<Props> = ({ timeframe }) => {
+  const { tracesPricing, tracesUsage, businessAssumptions } = useSettings();
+  const [calculatorExtraIngestFactor, setCalculatorExtraIngestFactor] = useState(1);
+  const [currentExtraIngestFactor, setCurrentExtraIngestFactor] = useState(2);
+
+  const baselineSamplingPct = businessAssumptions.currentTraceSamplingPct;
+  const projectedSamplingPct = Math.min(100, baselineSamplingPct * currentExtraIngestFactor);
+  const baselineIngestGiB = tracesUsage.ingestGiBPerDay;
+  const projectedIngestGiB = baselineIngestGiB * currentExtraIngestFactor;
+  const extraIngestGiB = Math.max(0, projectedIngestGiB - baselineIngestGiB);
+  const extraIngestUsdDaily = extraIngestGiB * tracesPricing.ingestUsdPerGiB;
+  const calculatorProjectedIngestGiB = baselineIngestGiB * calculatorExtraIngestFactor;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Card title="Dashboard 1: Full-Stack ATM and Trace Capture">
+        <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ fontSize: 12, opacity: 0.78 }}>
+            This sub-tab mirrors the core calculator intent from the Full-Stack ATM + trace capture dashboard, using your configured traces economics as the local what-if model.
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <a href={FULL_STACK_CAPTURE_DASHBOARD_URL} target="_blank" rel="noreferrer" style={linkBtn}>Open Dynatrace Dashboard</a>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Capture Factor Controls (Dashboard Variable Mirror)">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+          <label style={labelStyle}>Calculator extra ingest factor
+            <input
+              type="number"
+              min={0.1}
+              max={10}
+              step="0.1"
+              value={calculatorExtraIngestFactor}
+              onChange={(e) => setCalculatorExtraIngestFactor(clampFloat(Number(e.target.value), 0.1, 10, 1))}
+              style={inputStyle}
+            />
+          </label>
+          <label style={labelStyle}>Current extra ingest factor
+            <input
+              type="number"
+              min={0.1}
+              max={10}
+              step="0.1"
+              value={currentExtraIngestFactor}
+              onChange={(e) => setCurrentExtraIngestFactor(clampFloat(Number(e.target.value), 0.1, 10, 2))}
+              style={inputStyle}
+            />
+          </label>
+          <label style={labelStyle}>Timeframe context
+            <input type="text" readOnly value={timeframe} style={{ ...inputStyle, opacity: 0.75 }} />
+          </label>
+        </div>
+      </Card>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+        <Stat label="Baseline sampling" value={`${baselineSamplingPct.toFixed(0)}%`} />
+        <Stat label="Projected sampling" value={`${projectedSamplingPct.toFixed(0)}%`} />
+        <Stat label="Extra ingest" value={`${fmtNum(extraIngestGiB)} GiB/day`} />
+        <Stat label="Extra ingest cost/day" value={fmtUSD(extraIngestUsdDaily)} />
+      </div>
+
+      <Card title="Capture Uplift Summary">
+        <SortableTable
+          columns={[
+            { key: "metric", header: "Metric", render: (r: any) => r.metric, sortValue: (r: any) => r.metric },
+            { key: "baseline", header: "Baseline", align: "right", render: (r: any) => r.baseline, sortValue: (r: any) => r.baselineRaw },
+            { key: "scenario", header: "Current factor scenario", align: "right", render: (r: any) => r.scenario, sortValue: (r: any) => r.scenarioRaw },
+            { key: "calc", header: "Calculator factor scenario", align: "right", render: (r: any) => r.calc, sortValue: (r: any) => r.calcRaw },
+          ]}
+          data={[
+            {
+              metric: "Ingest volume",
+              baseline: `${fmtNum(baselineIngestGiB)} GiB/day`,
+              baselineRaw: baselineIngestGiB,
+              scenario: `${fmtNum(projectedIngestGiB)} GiB/day`,
+              scenarioRaw: projectedIngestGiB,
+              calc: `${fmtNum(calculatorProjectedIngestGiB)} GiB/day`,
+              calcRaw: calculatorProjectedIngestGiB,
+            },
+            {
+              metric: "Trace completeness proxy",
+              baseline: `${baselineSamplingPct.toFixed(0)}%`,
+              baselineRaw: baselineSamplingPct,
+              scenario: `${projectedSamplingPct.toFixed(0)}%`,
+              scenarioRaw: projectedSamplingPct,
+              calc: `${Math.min(100, baselineSamplingPct * calculatorExtraIngestFactor).toFixed(0)}%`,
+              calcRaw: Math.min(100, baselineSamplingPct * calculatorExtraIngestFactor),
+            },
+            {
+              metric: "Ingest cost/day",
+              baseline: fmtUSD(baselineIngestGiB * tracesPricing.ingestUsdPerGiB),
+              baselineRaw: baselineIngestGiB * tracesPricing.ingestUsdPerGiB,
+              scenario: fmtUSD(projectedIngestGiB * tracesPricing.ingestUsdPerGiB),
+              scenarioRaw: projectedIngestGiB * tracesPricing.ingestUsdPerGiB,
+              calc: fmtUSD(calculatorProjectedIngestGiB * tracesPricing.ingestUsdPerGiB),
+              calcRaw: calculatorProjectedIngestGiB * tracesPricing.ingestUsdPerGiB,
+            },
+          ]}
+          rowKey={(r: any) => r.metric}
+          defaultSortKey="scenario"
+          defaultSortDir="desc"
+          maxHeight={260}
+        />
+      </Card>
+    </div>
+  );
+};
+
+const TracesUsageInsights: React.FC<Props> = ({ timeframe }) => {
+  const { tracesPricing, tracesUsage } = useSettings();
+  const days = Math.max(1, timeframeDays(timeframe));
+
+  const ingestDaily = tracesUsage.ingestGiBPerDay;
+  const retainDaily = tracesUsage.retainGiBPerDay;
+  const queryDaily = tracesUsage.queryGiBScannedPerDay;
+
+  const ingestMonthlyCost = ingestDaily * tracesPricing.ingestUsdPerGiB * 30;
+  const retainMonthlyCost = retainDaily * tracesPricing.retainUsdPerGiBDay * 30;
+  const queryMonthlyCost = queryDaily * tracesPricing.queryUsdPerGiBScanned * 30;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Card title="Dashboard 2: Usage Traces (Application/User)">
+        <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ fontSize: 12, opacity: 0.78 }}>
+            This sub-tab provides an in-app usage summary and a direct jump to the Usage Traces dashboard for the detailed Application/User breakdown.
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <a href={TRACE_USAGE_DASHBOARD_URL} target="_blank" rel="noreferrer" style={linkBtn}>Open Dynatrace Usage Dashboard</a>
+          </div>
+        </div>
+      </Card>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+        <Stat label="Configured ingest" value={`${fmtNum(ingestDaily)} GiB/day`} />
+        <Stat label="Configured retain" value={`${fmtNum(retainDaily)} GiB/day`} />
+        <Stat label="Configured query scan" value={`${fmtNum(queryDaily)} GiB/day`} />
+        <Stat label={`Configured usage over ${Math.round(days)}d`} value={`${fmtNum((ingestDaily + retainDaily + queryDaily) * days)} GiB`} />
+      </div>
+
+      <Card title="Usage and Cost Footprint (Local Model)">
+        <SortableTable
+          columns={[
+            { key: "cap", header: "Capability", render: (r: any) => r.cap, sortValue: (r: any) => r.cap },
+            { key: "volume", header: "Volume/day", align: "right", render: (r: any) => r.volume, sortValue: (r: any) => r.volumeRaw },
+            { key: "rate", header: "Rate", align: "right", render: (r: any) => r.rate, sortValue: (r: any) => r.rateRaw },
+            { key: "monthly", header: "Monthly cost", align: "right", render: (r: any) => r.monthly, sortValue: (r: any) => r.monthlyRaw },
+          ]}
+          data={[
+            {
+              cap: "Ingest",
+              volume: `${fmtNum(ingestDaily)} GiB/day`,
+              volumeRaw: ingestDaily,
+              rate: `${fmtUSD(tracesPricing.ingestUsdPerGiB)}/GiB`,
+              rateRaw: tracesPricing.ingestUsdPerGiB,
+              monthly: fmtUSD(ingestMonthlyCost),
+              monthlyRaw: ingestMonthlyCost,
+            },
+            {
+              cap: "Retain",
+              volume: `${fmtNum(retainDaily)} GiB/day`,
+              volumeRaw: retainDaily,
+              rate: `${fmtUSD(tracesPricing.retainUsdPerGiBDay)}/GiB-day`,
+              rateRaw: tracesPricing.retainUsdPerGiBDay,
+              monthly: fmtUSD(retainMonthlyCost),
+              monthlyRaw: retainMonthlyCost,
+            },
+            {
+              cap: "Query",
+              volume: `${fmtNum(queryDaily)} GiB/day`,
+              volumeRaw: queryDaily,
+              rate: `${fmtUSD(tracesPricing.queryUsdPerGiBScanned)}/GiB scanned`,
+              rateRaw: tracesPricing.queryUsdPerGiBScanned,
+              monthly: fmtUSD(queryMonthlyCost),
+              monthlyRaw: queryMonthlyCost,
+            },
+          ]}
+          rowKey={(r: any) => r.cap}
+          defaultSortKey="monthly"
+          defaultSortDir="desc"
+          maxHeight={260}
+        />
+      </Card>
     </div>
   );
 };
@@ -421,6 +617,11 @@ function clamp(v: number, min: number, max: number, fallback: number): number {
   return Math.max(min, Math.min(max, Math.round(v)));
 }
 
+function clampFloat(v: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(v)) return fallback;
+  return Math.max(min, Math.min(max, v));
+}
+
 const labelStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -445,4 +646,12 @@ const btnSec: React.CSSProperties = {
   color: "inherit",
   cursor: "pointer",
   fontSize: 12,
+};
+
+const linkBtn: React.CSSProperties = {
+  ...btnSec,
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };

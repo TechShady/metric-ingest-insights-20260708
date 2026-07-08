@@ -24,17 +24,18 @@ const inputStyle: React.CSSProperties = {
 const overlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.45)",
+  background: "rgba(0,0,0,0.58)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   // Ensure settings modal stays above Dynatrace shell and any in-app sticky layers.
-  zIndex: 2147483000,
+  zIndex: 2147483647,
   isolation: "isolate",
 };
 
 const dialogStyle: React.CSSProperties = {
-  background: "rgba(128,128,128,0.12)",
+  // Use a near-opaque surface so underlying page content does not bleed through.
+  background: "rgba(128,128,128,0.95)",
   border: "1px solid rgba(128,128,128,0.35)",
   borderRadius: 8,
   padding: 20,
@@ -42,8 +43,11 @@ const dialogStyle: React.CSSProperties = {
   maxWidth: "95vw",
   maxHeight: "90vh",
   overflowY: "auto",
-  boxShadow: "0 8px 30px rgba(0,0,0,0.25)",
+  boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
   color: "inherit",
+  position: "relative",
+  zIndex: 2147483647,
+  backdropFilter: "blur(2px)",
 };
 
 const btnStyle: React.CSSProperties = {

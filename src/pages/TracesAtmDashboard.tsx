@@ -40,7 +40,7 @@ type Series = {
 type UnitInfo = { category?: string; unit?: string; decimals?: number };
 
 const ATM_DASHBOARD = atmDashboardJson as DashboardConfig;
-const ROW_HEIGHT = 52;
+const ROW_HEIGHT = 58;
 const DEFAULT_PALETTE = ["#134fc9", "#649438", "#ae132d", "#d56b1a", "#627cfe", "#438fb1", "#84859a"];
 
 export const TracesAtmDashboard: React.FC<Props> = ({ timeframe }) => {
@@ -121,7 +121,7 @@ export const TracesAtmDashboard: React.FC<Props> = ({ timeframe }) => {
           display: "grid",
           gridTemplateColumns: "repeat(24, minmax(0, 1fr))",
           gridAutoRows: `${ROW_HEIGHT}px`,
-          gap: 10,
+          gap: 12,
         }}
       >
         {tileIds.map((id) => {
@@ -136,6 +136,8 @@ export const TracesAtmDashboard: React.FC<Props> = ({ timeframe }) => {
                 gridColumn: `${layout.x + 1} / span ${layout.w}`,
                 gridRow: `${layout.y + 1} / span ${layout.h}`,
                 minHeight: 0,
+                height: "100%",
+                overflow: "hidden",
               }}
             >
               <AtmTile
@@ -168,11 +170,17 @@ const AtmTile: React.FC<{ tile: TileConfig; layout: LayoutConfig; records: AnyRe
   const showDescription = !!description && !isCompactTile;
   const chartHeight = isCompactTile ? 105 : (isMediumTile ? 120 : 150);
   const showLegend = !isCompactTile;
+  const descMaxHeight = isMediumTile ? 46 : 74;
+  const cardPadding = isCompactTile ? 12 : 16;
 
   return (
-    <Card title={tile.title} style={{ height: "100%", overflow: "hidden" }}>
+    <Card title={tile.title} style={{ height: "100%", overflow: "hidden", padding: cardPadding }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, height: "100%", minHeight: 0, overflow: "hidden" }}>
-        {showDescription && <RichText text={description} compact={isMediumTile} />}
+        {showDescription && (
+          <div style={{ maxHeight: descMaxHeight, overflow: "hidden" }}>
+            <RichText text={description} compact={isMediumTile} />
+          </div>
+        )}
         {error && <div style={{ fontSize: 12, color: "#ae132d" }}>{error}</div>}
         {!error && visualization === "singleValue" && <SingleValueTile tile={tile} records={records} compact={isCompactTile} />}
         {!error && visualization !== "singleValue" && <SeriesChartTile tile={tile} records={records} height={chartHeight} showLegend={showLegend} />}
@@ -204,7 +212,7 @@ const SeriesChartTile: React.FC<{ tile: TileConfig; records: AnyRec[]; height: n
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, minHeight: 0, overflow: "hidden" }}>
       <MiniSeriesChart series={series} height={height} />
-      {showLegend && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 11, opacity: 0.82 }}>
+      {showLegend && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 11, opacity: 0.82, maxHeight: 36, overflow: "hidden" }}>
         {series.slice(0, 8).map((s) => (
           <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
             <span style={{ width: 10, height: 10, borderRadius: 2, background: s.color, display: "inline-block" }} />
@@ -366,12 +374,12 @@ const RichText: React.FC<{ text: string; compact?: boolean }> = ({ text, compact
   const maxLines = compact ? 2 : 4;
   const shown = lines.slice(0, maxLines);
   return (
-    <div style={{ fontSize: 12, opacity: 0.84, lineHeight: 1.4 }}>
+    <div style={{ fontSize: 12, opacity: 0.84, lineHeight: 1.35, overflow: "hidden" }}>
       {shown.map((line, idx) => {
         if (line.startsWith("* ")) {
-          return <div key={idx}>- {line.slice(2)}</div>;
+          return <div key={idx} style={{ marginBottom: 2 }}>- {line.slice(2)}</div>;
         }
-        return <div key={idx}>{line.split("**").join("")}</div>;
+        return <div key={idx} style={{ marginBottom: 2 }}>{line.split("**").join("")}</div>;
       })}
       {lines.length > maxLines && <div style={{ opacity: 0.7 }}>...</div>}
     </div>

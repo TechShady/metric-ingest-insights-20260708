@@ -40,7 +40,7 @@ type Series = {
 type UnitInfo = { category?: string; unit?: string; decimals?: number };
 
 const ATM_DASHBOARD = atmDashboardJson as DashboardConfig;
-const ROW_HEIGHT = 44;
+const ROW_HEIGHT = 52;
 const DEFAULT_PALETTE = ["#134fc9", "#649438", "#ae132d", "#d56b1a", "#627cfe", "#438fb1", "#84859a"];
 
 export const TracesAtmDashboard: React.FC<Props> = ({ timeframe }) => {
@@ -140,6 +140,7 @@ export const TracesAtmDashboard: React.FC<Props> = ({ timeframe }) => {
             >
               <AtmTile
                 tile={tile}
+                layout={layout}
                 records={recordsByTile[id] ?? []}
                 error={errorsByTile[id]}
               />
@@ -151,10 +152,10 @@ export const TracesAtmDashboard: React.FC<Props> = ({ timeframe }) => {
   );
 };
 
-const AtmTile: React.FC<{ tile: TileConfig; records: AnyRec[]; error?: string }> = ({ tile, records, error }) => {
+const AtmTile: React.FC<{ tile: TileConfig; layout: LayoutConfig; records: AnyRec[]; error?: string }> = ({ tile, layout, records, error }) => {
   if (tile.type === "markdown") {
     return (
-      <Card>
+      <Card style={{ height: "100%", overflow: "hidden" }}>
         <div style={{ fontWeight: 700, fontSize: 16 }}>{stripMarkdownHeader(tile.content ?? "")}</div>
       </Card>
     );
@@ -162,20 +163,25 @@ const AtmTile: React.FC<{ tile: TileConfig; records: AnyRec[]; error?: string }>
 
   const visualization = tile.visualization ?? "lineChart";
   const description = tile.description ?? "";
+  const isCompactTile = layout.h <= 3;
+  const isMediumTile = layout.h <= 4;
+  const showDescription = !!description && !isCompactTile;
+  const chartHeight = isCompactTile ? 105 : (isMediumTile ? 120 : 150);
+  const showLegend = !isCompactTile;
 
   return (
-    <Card title={tile.title} style={{ height: "100%" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, height: "100%" }}>
-        {description && <RichText text={description} />}
+    <Card title={tile.title} style={{ height: "100%", overflow: "hidden" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, height: "100%", minHeight: 0, overflow: "hidden" }}>
+        {showDescription && <RichText text={description} compact={isMediumTile} />}
         {error && <div style={{ fontSize: 12, color: "#ae132d" }}>{error}</div>}
-        {!error && visualization === "singleValue" && <SingleValueTile tile={tile} records={records} />}
-        {!error && visualization !== "singleValue" && <SeriesChartTile tile={tile} records={records} />}
+        {!error && visualization === "singleValue" && <SingleValueTile tile={tile} records={records} compact={isCompactTile} />}
+        {!error && visualization !== "singleValue" && <SeriesChartTile tile={tile} records={records} height={chartHeight} showLegend={showLegend} />}
       </div>
     </Card>
   );
 };
 
-const SingleValueTile: React.FC<{ tile: TileConfig; records: AnyRec[] }> = ({ tile, records }) => {
+const SingleValueTile: React.FC<{ tile: TileConfig; records: AnyRec[]; compact?: boolean }> = ({ tile, records, compact = false }) => {
   const settings = tile.visualizationSettings?.singleValue;
   const field = settings?.recordField as string | undefined;
   const row = records[0] ?? {};
@@ -184,28 +190,28 @@ const SingleValueTile: React.FC<{ tile: TileConfig; records: AnyRec[] }> = ({ ti
   const unit = resolveUnit(tile, field);
 
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, minHeight: 120 }}>
-      <div style={{ fontSize: 36, fontWeight: 700 }}>{formatValue(value, unit)}</div>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, minHeight: compact ? 72 : 120, overflow: "hidden" }}>
+      <div style={{ fontSize: compact ? 28 : 36, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{formatValue(value, unit)}</div>
     </div>
   );
 };
 
-const SeriesChartTile: React.FC<{ tile: TileConfig; records: AnyRec[] }> = ({ tile, records }) => {
+const SeriesChartTile: React.FC<{ tile: TileConfig; records: AnyRec[]; height: number; showLegend: boolean }> = ({ tile, records, height, showLegend }) => {
   const series = buildSeries(tile, records);
   if (!series.length) {
     return <div style={{ fontSize: 12, opacity: 0.7 }}>No data</div>;
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <MiniSeriesChart series={series} height={150} />
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 11, opacity: 0.82 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, minHeight: 0, overflow: "hidden" }}>
+      <MiniSeriesChart series={series} height={height} />
+      {showLegend && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 11, opacity: 0.82 }}>
         {series.slice(0, 8).map((s) => (
           <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
             <span style={{ width: 10, height: 10, borderRadius: 2, background: s.color, display: "inline-block" }} />
             {s.label}
           </span>
         ))}
-      </div>
+      </div>}
     </div>
   );
 };
@@ -355,16 +361,19 @@ const MiniSeriesChart: React.FC<{ series: Series[]; height: number }> = ({ serie
   );
 };
 
-const RichText: React.FC<{ text: string }> = ({ text }) => {
+const RichText: React.FC<{ text: string; compact?: boolean }> = ({ text, compact = false }) => {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const maxLines = compact ? 2 : 4;
+  const shown = lines.slice(0, maxLines);
   return (
     <div style={{ fontSize: 12, opacity: 0.84, lineHeight: 1.4 }}>
-      {lines.map((line, idx) => {
+      {shown.map((line, idx) => {
         if (line.startsWith("* ")) {
           return <div key={idx}>- {line.slice(2)}</div>;
         }
         return <div key={idx}>{line.split("**").join("")}</div>;
       })}
+      {lines.length > maxLines && <div style={{ opacity: 0.7 }}>...</div>}
     </div>
   );
 };

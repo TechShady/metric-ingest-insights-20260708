@@ -8,6 +8,7 @@ import { fmtNum } from "../lib/forecast";
 import { fmtUSD } from "../lib/cost";
 import { timeframeDays } from "../lib/timeframe";
 import { useSettings } from "../state/SettingsContext";
+import { TracesAtmDashboard } from "./TracesAtmDashboard";
 
 interface Props {
   timeframe: string;
@@ -18,7 +19,7 @@ const FULL_STACK_CAPTURE_DASHBOARD_HASH = "from=now%28%29-7d&to=now%28%29&vfilte
 const TRACE_USAGE_DASHBOARD_ID = "dynatrace.distributedtracing.usage-traces";
 const TRACE_USAGE_DASHBOARD_HASH = "vfilter_Application=3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*&vfilter_User=3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*&from=now%28%29-2h&to=now%28%29";
 
-type TracesSubTab = "overview" | "forecast" | "optimize" | "captureDash" | "usageDash";
+type TracesSubTab = "overview" | "forecast" | "optimize" | "captureDash" | "usageDash" | "atm";
 
 export const TracesPage: React.FC<Props> = ({ timeframe }) => {
   const [tab, setTab] = useState<TracesSubTab>("overview");
@@ -31,6 +32,7 @@ export const TracesPage: React.FC<Props> = ({ timeframe }) => {
           { id: "optimize", label: "Optimize" },
           { id: "captureDash", label: "Capture Insights" },
           { id: "usageDash", label: "Usage Insights" },
+          { id: "atm", label: "ATM" },
         ].map((t) => (
           <button
             key={t.id}
@@ -55,6 +57,7 @@ export const TracesPage: React.FC<Props> = ({ timeframe }) => {
       {tab === "optimize" && <TracesOptimize timeframe={timeframe} />}
       {tab === "captureDash" && <TracesCaptureInsights timeframe={timeframe} />}
       {tab === "usageDash" && <TracesUsageInsights timeframe={timeframe} />}
+      {tab === "atm" && <TracesAtmDashboard timeframe={timeframe} />}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 name: my.metric.ingest
-version: 0.10.20
+version: 0.10.21
 title: Telemetry Ingest Insight
 description: Analyze telemetry ingest volume by signal type, source, and forecast.
 icon: ./src/assets/icon.svg
